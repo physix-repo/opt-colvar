@@ -15,6 +15,7 @@
       double precision tau_new,tau_old
       double precision, allocatable :: Integral(:),z1(:),z2(:)
       double precision a,b,q0,dq,dtau,Fmin
+      double precision,dimension (3) :: s
       character str
       real kBT
       !
@@ -68,16 +69,16 @@
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !INITIALIZATION
       CALL init_random_seed()  !generate random seed
-      CALL random_number(w1)
-      CALL random_number(w2)
-      CALL random_number(w3)
+      w1=0.3 !give all variables the same weight
+      w2=0.3
+      w3=0.4
       tau_old=0
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !
       !Suggest a move
       allocate(F(1000),G(1000),D(1000),Q(1000),Integral(1000))
         do j=1,1000 !MAIN LOOP!!!!!!!!!!!!!!!!!!
-              CALL create_colvar(n,w1,w2,w3,cv1,cv2,cv3,t,dw1,dw2,dw3,a,b,q0)
+              CALL create_colvar(n,w1,w2,w3,cv1,cv2,cv3,t,dw1,dw2,dw3,a,b,q0,s)
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !run the opt LE code to get F and D of colvar
                 call execute_command_line ('./optle')
@@ -118,17 +119,17 @@
                 call random_number(r)
                 open(unit=13,file='tau')
                 if (tau_old<=tau_new) then
-                        write(13,*) j,w1+dw1,w2+dw2,w3+dw3,tau_new,'A',w1+dw1+w2+dw2+w3+dw3
+                        write(13,*) j,s(1),s(2),s(3),tau_new,'A',sum(s)
                         tau_old=tau_new
-                        w1=w1+dw1
-                        w2=w2+dw2
-                        w3=w3+dw3
+                        w1=s(1)
+                        w2=s(2)
+                        w3=s(3)
                 elseif ((tau_new/tau_old)<r) then
-                        write(13,*)j,w1+dw1,w2+dw2,w3+dw3,tau_new,'B',w1+dw1+w2+dw2+w3+dw3
+                        write(13,*)j,s(1),s(2),s(3),tau_new,'B',sum(s)
                         tau_old=tau_new
-                        w1=w1+dw1
-                        w2=w2+dw2
-                        w3=w3+dw3
+                        w1=s(1)
+                        w2=s(2)
+                        w3=s(3)
                 endif
                 print*,tau_old
         enddo
@@ -137,11 +138,12 @@
         !
         contains
         !
-        SUBROUTINE create_colvar(n,w1,w2,w3,cv1,cv2,cv3,t,dw1,dw2,dw3,a,b,q0)
+        SUBROUTINE create_colvar(n,w1,w2,w3,cv1,cv2,cv3,t,dw1,dw2,dw3,a,b,q0,s)
         INTEGER :: i,n
         DOUBLE PRECISION dw1,dw2,dw3,w1,w2,w3,factor1,a,b,q0
         DOUBLE PRECISION, ALLOCATABLE :: cv1(:),cv2(:),cv3(:),x_new(:)
         DOUBLE PRECISION, ALLOCATABLE ::t(:),z1(:),z2(:)
+        DOUBLE PRECISION,DIMENSION(3):: s
         CALL INIT_RANDOM_SEED()
         CALL RANDOM_NUMBER(dw1)
         CALL RANDOM_NUMBER(dw2)
@@ -151,11 +153,12 @@
         dw1=-0.01+(0.01-(-0.01))*dw1 !random increment between -0.01 and 0.01
         dw2=-0.01+(0.01-(-0.01))*dw2
         dw3=-0.01+(0.01-(-0.01))*dw3
+        s=(/w1+dw1,w2+dw2,w3+dw3/)
         !factor1=1/sqrt((w1+dw1)**2+(w2+dw2)**2+(w3+dw3)**2)
-        factor1=1/(w1+w2+w3+dw1+dw2+dw3)
+        factor1=1/(sum(s))
         open(unit=10,file='colvar')
         do i=1,n
-                x_new(i)=factor1*((w1+dw1)*cv1(i)+(w2+dw2)*cv2(i)+(w3+dw3)*cv3(i))
+                x_new(i)=factor1*((s(1))*cv1(i)+(s(2))*cv2(i)+(s(3))*cv3(i))
                 if (t(i) .eq. 100 ) then !label colvar file
                         if (cv1(i) .gt. 0.5) then
                                 write(10,*) t(i),x_new(i),2
@@ -169,12 +172,17 @@
                         end if
                 end do
         close(10)
-        w1=factor1*w1
-        w2=factor1*w2
-        w3=factor1*w3
-        dw1=factor1*dw1
-        dw2=factor1*dw2
-        dw3=factor1*dw3
+        do i=1,3 !keeps weights between 0 and 1
+                if (s(i).lt.0) then
+                        s(i)=s(i)*(-1)**cmplx(0,1)
+                endif
+                if (s(i).gt.1) then
+                        s(i)=1-(s(i)-1)
+                endif
+        enddo
+        s(1)=factor1*s(1)
+        s(2)=factor1*s(2)
+        s(3)=factor1*s(3)
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         !Find integral bounds and Free energy minimum a,b,q0 to calculate
         !mfpt from integral 
