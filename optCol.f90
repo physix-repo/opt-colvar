@@ -4,25 +4,27 @@
       !
       implicit none
       !!!!!!!!!!!!!!Variable Declaration!!!!!!!!!!!!!!!!!!!!!!!!!
-      double precision, allocatable :: t(:),x_init(:)
-      double precision, allocatable :: cv1(:),cv2(:),cv3(:)
-      double precision, allocatable :: x_new(:)
+      double precision, allocatable :: t(:),x_init(:),cv(:,:)
+      double precision, allocatable :: x_new(:),cv_temp(:)
       double precision, allocatable :: F(:),G(:),D(:),Q(:)
-      integer n,i,io,j,k,o,clock,label
-      double precision t_tmp,cv1_tmp,cv2_tmp,cv3_tmp
-      double precision w1,w2,w3,dw1,dw2,dw3,r,factor
+      integer n,i,io,j,k,o,clock,label,m,error,col
+      double precision t_tmp
+      double precision r,factor
       double precision col1,col2,col3,col4,col5
       double precision tau_new,tau_old
       double precision, allocatable :: Integral(:),z1(:),z2(:)
-      double precision a,b,q0,dq,dtau,Fmin
-      double precision,dimension (3) :: s
+      double precision a,b,q0,dq,dtau,Fmin,tfinal
+      double precision, allocatable ::s(:),w(:),dw(:)
       character str
-      real kBT
+      character(len=80) :: string
+      real :: kBT,val
       !
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      !read colvar file and get number of columns (m) and lines (n)  
       !
-      !read and store input and get number of lines in file n
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      !
       n=0
       o=0
       open(unit=3,file='colvar_x1')
@@ -31,54 +33,70 @@
                 if (io/=0) exit
                 n=n+1
         end do
-      close(3)
       print *, 'Number of lines in colvar is',n
       !
-      allocate(t(n),cv1(n),cv2(n),cv3(n),x_init(n))
-      open(unit=3,file='colvar_x1')
-        do i=1,n
-                read(3,*) t_tmp,cv1_tmp,cv2_tmp,cv3_tmp !read the columns in colvar file
-                t(i)=t_tmp
-                cv1(i)=cv1_tmp
-                cv2(i)=cv2_tmp
-                cv3(i)=cv3_tmp
-        end do
-      print *, t(n),cv1(n),cv2(n),cv3(n)
       close(3)
+      open(unit=3,file='colvar_x1')
+      read (3,'(a)') string
+        do i =1,40   ! The very maximum that the string can contain
+                read( string, *, iostat=error ) ( val, k=1,i )
+                if ( error .ne. 0 ) then
+                m = i - 1
+                exit
+                endif
+        enddo
+      close(3)
+      print *, 'Number of columns in colvar file is',m
       !
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      !Let's scale the colvar file between 0 and 1
-      cv1= (cv1 - minval(cv1)) / (maxval(cv1)- minval(cv1))
-      cv2= (cv2 - minval(cv2)) / (maxval(cv2)- minval(cv2))
-      cv3= (cv3 - minval(cv3)) / (maxval(cv3)- minval(cv3))
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      !
+      !!!!!!!!!!!store and normalize colvar file!!!!!!!!!!!!!!!!! 
+      ! 
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      !
+      allocate(cv(n,m),t(n))
+      open(unit=3,file='colvar_x1')
+        do i = 1,n
+                read(3,*) (cv(i,col),col=1,m) !read columns in colvar
+        enddo
+      close(3)
+      t=cv(:,1)!store time in separate array
+      tfinal=t(n)
+      !
+        do i = 2,m !Let's scale the colvar file between 0 and 1
+                cv(:,i)= (cv(:,i) - minval(cv(:,i))) / (maxval(cv(:,i)-minval(cv(:,i))))
+        end do
       !Store normalized cv in file
       open(unit=88,file='normalized_cv')
       do i=1,n
-        if (t(i)==100) then
-                if (cv1(i) .gt. 0.5) then
-                        write(88,*) t(i),cv1(i),cv2(i),cv3(i),2
+        if (t(i)==tfinal) then
+                if (cv(i,2) .gt. 0.5) then
+                        write(88,*) (cv(i,col),col=1,m),2
                 else
-                        write(88,*) t(i),cv1(i),cv2(i),cv3(i),1
+                        write(88,*) (cv(i,col),col=1,m),1
                 endif
         else
-                write(88,*) t(i),cv1(i),cv2(i),cv3(i)
+                write(88,*) (cv(i,col),col=1,m)
 
         end if 
       end do
+      print *, cv(n,:)
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !INITIALIZATION
       CALL init_random_seed()  !generate random seed
-      w1=0.3 !give all variables the same weight
-      w2=0.3
-      w3=0.4
+      allocate(w(m-1))
+      allocate(dw(m-1))
+      allocate(s(m-1))
+        do i=1,m-1
+                call random_number(w(i)) !generate random weights
+        end do
       tau_old=0
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !
       !Suggest a move
       allocate(F(1000),G(1000),D(1000),Q(1000),Integral(1000))
         do j=1,1000 !MAIN LOOP!!!!!!!!!!!!!!!!!!
-              CALL create_colvar(n,w1,w2,w3,cv1,cv2,cv3,t,dw1,dw2,dw3,a,b,q0,s)
+              CALL create_colvar(n,m,w,cv,t,dw,a,b,q0,s)
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !run the opt LE code to get F and D of colvar
                 call execute_command_line ('./optle')
@@ -119,17 +137,13 @@
                 call random_number(r)
                 open(unit=13,file='tau')
                 if (tau_old<=tau_new) then
-                        write(13,*) j,s(1),s(2),s(3),tau_new,'A',sum(s)
+                        write(13,*) j,s,tau_new,'A',sum(s)
                         tau_old=tau_new
-                        w1=s(1)
-                        w2=s(2)
-                        w3=s(3)
-                elseif ((tau_new/tau_old)<r) then
-                        write(13,*)j,s(1),s(2),s(3),tau_new,'B',sum(s)
+                        w=s !update weights
+                elseif ((tau_new/tau_old)>r) then
+                        write(13,*)j,s,tau_new,'B',sum(s)
                         tau_old=tau_new
-                        w1=s(1)
-                        w2=s(2)
-                        w3=s(3)
+                        w=s !update weights
                 endif
                 print*,tau_old
         enddo
@@ -138,29 +152,26 @@
         !
         contains
         !
-        SUBROUTINE create_colvar(n,w1,w2,w3,cv1,cv2,cv3,t,dw1,dw2,dw3,a,b,q0,s)
-        INTEGER :: i,n
-        DOUBLE PRECISION dw1,dw2,dw3,w1,w2,w3,factor1,a,b,q0
-        DOUBLE PRECISION, ALLOCATABLE :: cv1(:),cv2(:),cv3(:),x_new(:)
+        SUBROUTINE create_colvar(n,m,w,cv,t,dw,a,b,q0,s)
+        INTEGER :: i,n,m,k
+        DOUBLE PRECISION factor1,a,b,q0
+        DOUBLE PRECISION, ALLOCATABLE :: w(:),cv(:,:),dw(:),s(:),x_new(:)
         DOUBLE PRECISION, ALLOCATABLE ::t(:),z1(:),z2(:)
-        DOUBLE PRECISION,DIMENSION(3):: s
         CALL INIT_RANDOM_SEED()
-        CALL RANDOM_NUMBER(dw1)
-        CALL RANDOM_NUMBER(dw2)
-        CALL RANDOM_NUMBER(dw3)
         allocate(x_new(n))
         allocate(z1(0),z2(0))
-        dw1=-0.01+(0.01-(-0.01))*dw1 !random increment between -0.01 and 0.01
-        dw2=-0.01+(0.01-(-0.01))*dw2
-        dw3=-0.01+(0.01-(-0.01))*dw3
-        s=(/w1+dw1,w2+dw2,w3+dw3/)
+        do i=1,m-1
+                CALL random_number(dw(i))
+        enddo
+        dw=-0.01+(0.01-(-0.01))*dw !random increment between -0.01 and 0.01
+        s=w+dw
         !factor1=1/sqrt((w1+dw1)**2+(w2+dw2)**2+(w3+dw3)**2)
         factor1=1/(sum(s))
         open(unit=10,file='colvar')
         do i=1,n
-                x_new(i)=factor1*((s(1))*cv1(i)+(s(2))*cv2(i)+(s(3))*cv3(i))
+                x_new(i)=factor1*(sum(s*cv(i,:)))  !Karen, please help! 
                 if (t(i) .eq. 100 ) then !label colvar file
-                        if (cv1(i) .gt. 0.5) then
+                        if (cv(i,2) .gt. 0.5) then
                                 write(10,*) t(i),x_new(i),2
                                 z2=[z2,x_new(i)]
                         else
@@ -170,9 +181,9 @@
                         else
                                 write(10,*) t(i), x_new(i)
                         end if
-                end do
+        enddo
         close(10)
-        do i=1,3 !keeps weights between 0 and 1
+        do i=1,m-1 !keeps weights between 0 and 1
                 if (s(i).lt.0) then
                         s(i)=s(i)*(-1)**cmplx(0,1)
                 endif
@@ -180,9 +191,7 @@
                         s(i)=1-(s(i)-1)
                 endif
         enddo
-        s(1)=factor1*s(1)
-        s(2)=factor1*s(2)
-        s(3)=factor1*s(3)
+        s=factor1*s
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         !Find integral bounds and Free energy minimum a,b,q0 to calculate
         !mfpt from integral 
@@ -190,7 +199,6 @@
                 b=sum(z2)/size(z2) !average value of second minima absorbing bound
                 q0=sum(z1)/size(z1) !average value of first minima
                 print*, 'integral bounds are=',a,b,q0
-
         RETURN
         END SUBROUTINE
       !XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX!
