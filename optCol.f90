@@ -70,7 +70,7 @@
       open(unit=88,file='normalized_cv')
       do i=1,n
         if (t(i)==tfinal) then
-                if (cv(i,2) .gt. 0.5) then
+                if (cv(i,2) .gt. cv(1,2)) then
                         write(88,*) (cv(i,col),col=1,m),2
                 else
                         write(88,*) (cv(i,col),col=1,m),1
@@ -80,7 +80,7 @@
 
         end if 
       end do
-      print *, cv(n,:)
+      print *, cv(1,2)
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !INITIALIZATION
       CALL init_random_seed()  !generate random seed
@@ -137,11 +137,11 @@
                 call random_number(r)
                 open(unit=13,file='tau')
                 if (tau_old<=tau_new) then
-                        write(13,*) j,s,tau_new,'A',sum(s)
+                        write(13,*) j,s,tau_new,'A',sqrt(sum(s**2))
                         tau_old=tau_new
                         w=s !update weights
                 elseif ((tau_new/tau_old)>r) then
-                        write(13,*)j,s,tau_new,'B',sum(s)
+                        write(13,*)j,s,tau_new,'B',sqrt(sum(s**2))
                         tau_old=tau_new
                         w=s !update weights
                 endif
@@ -153,10 +153,10 @@
         contains
         !
         SUBROUTINE create_colvar(n,m,w,cv,t,dw,a,b,q0,s)
-        INTEGER :: i,n,m,k
+        INTEGER :: i,n,m,k,col
         DOUBLE PRECISION factor1,a,b,q0
         DOUBLE PRECISION, ALLOCATABLE :: w(:),cv(:,:),dw(:),s(:),x_new(:)
-        DOUBLE PRECISION, ALLOCATABLE ::t(:),z1(:),z2(:)
+        DOUBLE PRECISION, ALLOCATABLE :: t(:),z1(:),z2(:)
         CALL INIT_RANDOM_SEED()
         allocate(x_new(n))
         allocate(z1(0),z2(0))
@@ -165,13 +165,12 @@
         enddo
         dw=-0.01+(0.01-(-0.01))*dw !random increment between -0.01 and 0.01
         s=w+dw
-        !factor1=1/sqrt((w1+dw1)**2+(w2+dw2)**2+(w3+dw3)**2)
-        factor1=1/(sum(s))
+        factor1=1/sqrt(dot_product(s,s)) ! XXX check
         open(unit=10,file='colvar')
         do i=1,n
-                x_new(i)=factor1*(sum(s*cv(i,:)))  !Karen, please help! 
-                if (t(i) .eq. 100 ) then !label colvar file
-                        if (cv(i,2) .gt. 0.5) then
+                x_new(i)=factor1*sum(s*cv(i,2:m))  
+                if (t(i) .eq. tfinal ) then !label colvar file
+                        if (cv(i,2) .gt. cv(1,2)) then !shootings start from barrier top
                                 write(10,*) t(i),x_new(i),2
                                 z2=[z2,x_new(i)]
                         else
@@ -183,14 +182,6 @@
                         end if
         enddo
         close(10)
-        do i=1,m-1 !keeps weights between 0 and 1
-                if (s(i).lt.0) then
-                        s(i)=s(i)*(-1)**cmplx(0,1)
-                endif
-                if (s(i).gt.1) then
-                        s(i)=1-(s(i)-1)
-                endif
-        enddo
         s=factor1*s
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         !Find integral bounds and Free energy minimum a,b,q0 to calculate
@@ -218,4 +209,3 @@
       !XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX!
       end program debug
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
