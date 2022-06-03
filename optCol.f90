@@ -154,9 +154,10 @@
         !
         SUBROUTINE create_colvar(n,m,w,cv,t,dw,a,b,q0,s)
         INTEGER :: i,n,m,k,col
-        DOUBLE PRECISION factor1,a,b,q0
+        DOUBLE PRECISION factor1,a,b,q0,cvmin,cvmax,incr
         DOUBLE PRECISION, ALLOCATABLE :: w(:),cv(:,:),dw(:),s(:),x_new(:)
         DOUBLE PRECISION, ALLOCATABLE :: t(:),z1(:),z2(:)
+        DOUBLE PRECISION Array(1000)
         CALL INIT_RANDOM_SEED()
         allocate(x_new(n))
         allocate(z1(0),z2(0))
@@ -190,6 +191,22 @@
                 b=sum(z2)/size(z2) !average value of second minima absorbing bound
                 q0=sum(z1)/size(z1) !average value of first minima
                 print*, 'integral bounds are=',a,b,q0
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        ! CREATE RESTART FILE FOR OPTLE
+        open(unit=99,file='RESTART')
+        write (99,*) '#x,F,F/kT,Gamma,m'
+        cvmin=minval(x_new)
+        cvmax=maxval(x_new)
+        incr=(cvmax-cvmin)/1000
+                do k=1,1000
+                        Array = [(cvmin  + (k-1) * incr, k=1,1000 )]
+                end do
+                do k=1,1000
+                        write (99,*) Array(k), 0, 0, 50, 1
+                end do
+        close(99)
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        !
         RETURN
         END SUBROUTINE
       !XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX!
