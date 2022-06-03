@@ -97,6 +97,7 @@
       allocate(F(1000),G(1000),D(1000),Q(1000),Integral(1000))
         do j=1,1000 !MAIN LOOP!!!!!!!!!!!!!!!!!!
               CALL create_colvar(n,m,w,cv,t,dw,a,b,q0,s)
+              call execute_command_line('./restart.sh')
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !run the opt LE code to get F and D of colvar
                 call execute_command_line ('./optle')
@@ -153,7 +154,7 @@
         contains
         !
         SUBROUTINE create_colvar(n,m,w,cv,t,dw,a,b,q0,s)
-        INTEGER :: i,n,m,k,col
+        INTEGER :: i,n,m,k,col,kp
         DOUBLE PRECISION factor1,a,b,q0,cvmin,cvmax,incr
         DOUBLE PRECISION, ALLOCATABLE :: w(:),cv(:,:),dw(:),s(:),x_new(:)
         DOUBLE PRECISION, ALLOCATABLE :: t(:),z1(:),z2(:)
@@ -197,9 +198,9 @@
         write (99,*) '#x,F,F/kT,Gamma,m'
         cvmin=minval(x_new)
         cvmax=maxval(x_new)
-        incr=(cvmax-cvmin)/1000
+        incr=(cvmax-cvmin)/999
                 do k=1,1000
-                        Array = [(cvmin  + (k-1) * incr, k=1,1000 )]
+                        Array = [(cvmin  + (kp-1) * incr, kp=1,1000 )]
                 end do
                 do k=1,1000
                         write (99,*) Array(k), 0, 0, 50, 1

@@ -1,8 +1,8 @@
 colvar_file       colvar        (format: t x, multiple trajectoires appended)  
 dt                1          (time step in colvar file)
 dtmult            1             (time step for integration dtint = dt/dtmult)
-xmin              -1            (min and max value of the CV in the colvar)
-xmax              1
+xmin              cvmin            (min and max value of the CV in the colvar)
+xmax              cvmax
 xbins            40             (used for x and v histograms in old version: not used now)
 kT               1.0
 init_tau         400.           (not used in overdamped optimization)
