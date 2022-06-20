@@ -141,7 +141,7 @@
                         write(13,*) j,s,tau_new,'A',sqrt(sum(s**2))
                         tau_old=tau_new
                         w=s !update weights
-                elseif ((tau_new/tau_old)>r) then
+                elseif ((tau_new/tau_old)*0.1>r) then !xx check
                         write(13,*)j,s,tau_new,'B',sqrt(sum(s**2))
                         tau_old=tau_new
                         w=s !update weights
@@ -165,9 +165,9 @@
         do i=1,m-1
                 CALL random_number(dw(i))
         enddo
-        dw=-0.01+(0.01-(-0.01))*dw !random increment between -0.01 and 0.01
+        dw=-0.05+(0.05-(-0.05))*dw !random increment between -0.05 and 0.05
         s=w+dw
-        factor1=1/sqrt(dot_product(s,s)) ! XXX check
+        factor1=1/sqrt(dot_product(s,s))
         open(unit=10,file='colvar')
         do i=1,n
                 x_new(i)=factor1*sum(s*cv(i,2:m))  

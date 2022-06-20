@@ -1,5 +1,5 @@
 colvar_file       colvar        (format: t x, multiple trajectoires appended)  
-dt                1          (time step in colvar file)
+dt                0.4          (time step in colvar file)
 dtmult            1             (time step for integration dtint = dt/dtmult)
 xmin              cvmin            (min and max value of the CV in the colvar)
 xmax              cvmax
