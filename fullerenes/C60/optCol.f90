@@ -16,7 +16,7 @@
       double precision a,b,q0,dq,dtau,Fmin,tfinal
       double precision, allocatable ::s(:),w(:),dw(:)
       character str
-      character(len=80) :: string
+      character(len=120) :: string
       real :: kBT,val
       !
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
