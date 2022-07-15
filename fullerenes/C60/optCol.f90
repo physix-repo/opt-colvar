@@ -7,14 +7,14 @@
       double precision, allocatable :: t(:),x_init(:),cv(:,:)
       double precision, allocatable :: x_new(:),cv_temp(:)
       double precision, allocatable :: F(:),G(:),D(:),Q(:)
-      integer n,i,io,j,k,o,clock,label,m,error,col
+      integer n,i,io,j,k,o,clock,label,m,error,col,n_noise
       double precision t_tmp
-      double precision r,factor
+      double precision r,factor,prob
       double precision col1,col2,col3,col4,col5
       double precision tau_new,tau_old
       double precision, allocatable :: Integral(:),z1(:),z2(:)
-      double precision a,b,q0,dq,dtau,Fmin,tfinal
-      double precision, allocatable ::s(:),w(:),dw(:)
+      double precision a,b,q0,dq,dtau,Fmin,tfinal,tnoise_old,tnoise_new
+      double precision, allocatable::s(:),w(:),dw(:),corr(:),timestep(:)
       character str
       character(len=120) :: string
       real :: kBT,val
@@ -90,7 +90,8 @@
         do i=1,m-1
                 call random_number(w(i)) !generate random weights
         end do
-      tau_old=0
+      tau_old=1
+      tnoise_old=1
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !
       !Suggest a move
@@ -112,7 +113,7 @@
                         D(i)=1/col4
                         write(66,*) Q(i),F(i),D(i)
                 end do
-                print*,F(1000),Q(1000),G(1000)
+                print*,'Last profiles are:',F(1000),Q(1000),G(1000)
                 close(11)
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !calculate mfpt from integral
@@ -133,22 +134,63 @@
                         endif
                 end do
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      !Calculate noise
+                call execute_command_line('./cor.x')
+                open(unit=888,file='noise-corr')
+                n_noise=0
+                do
+                        read(888,*,iostat=io) !read the columns in colvar file
+                        if (io/=0) exit
+                        n_noise=n_noise+1
+                end do
+                close(888)
+                allocate(timestep(n_noise),corr(n_noise))
+                open(unit=888,file='noise-corr')
+                open(unit=777,file='corr-all')
+                do k=1,n_noise
+                        read(888,*) timestep(k),corr(k)
+                        write(777,*) timestep(k),corr(k)
+                end do
+                do k=1,n_noise
+                        if (corr(k) .lt. 0.1) exit
+                                tnoise_new=k
+                enddo
+                close(888)
+                open (unit=999,file='tau_noise')
+                write (999,*) j,tnoise_new
+                print*,'tau noise is',tnoise_new
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !Accept tau with certain probability METROPOLIS
                 !kBT=0.1
                 call random_number(r)
                 open(unit=13,file='tau')
-                if (tau_old<=tau_new) then
-                        write(13,*) j,s,tau_new,'A',sqrt(sum(s**2))
-                        tau_old=tau_new
-                        w=s !update weights
-                elseif ((tau_new/tau_old)*0.1>r) then
-                        write(13,*)j,s,tau_new,'B',sqrt(sum(s**2))
-                        tau_old=tau_new
-                        w=s !update weights
+                open(unit=555,file='tau-all')
+                prob= (tnoise_old/tnoise_new)*(tau_new/tau_old)**2
+                 call random_number(r)
+                 if (r<prob) then
+                   write(13,*) j,s,tau_new,'A',sqrt(sum(s**2))
+                   write(555,*) j,tau_new,'A'
+                   tau_old=tau_new
+                   tnoise_old=tnoise_new
+                   w=s !update weights
                 endif
+                 if (r>prob) then 
+                   write(555,*) j,tau_new,'R'
+                 endif
+                !!if (tau_old<=tau_new) then
+                !!        write(13,*) j,s,tau_new,'A',sqrt(sum(s**2))
+                !!        tau_old=tau_new
+                !!        w=s !update weights
+                !! elseif ((tau_new/tau_old)*0.1>r) then
+                !!        write(13,*)j,s,tau_new,'B',sqrt(sum(s**2))
+                !!        tau_old=tau_new
+                !!        w=s !update weights
+                !! endif
                 print*,tau_old
+                deallocate(timestep,corr)
         enddo
                 close(13)
+                close(555)
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         !
         contains
