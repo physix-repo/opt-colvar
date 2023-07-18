@@ -7,12 +7,12 @@
       double precision, allocatable :: t(:),x_init(:),cv(:,:)
       double precision, allocatable :: x_new(:),cv_temp(:)
       double precision, allocatable :: F(:),G(:),D(:),Q(:)
-      integer n,i,io,j,k,o,clock,label,m,error,col,n_noise
+      integer n,i,io,j,k,o,clock,label,m,error,col,n_noise,jnew
       double precision t_tmp
       double precision r,factor,prob
       double precision col1,col2,col3,col4,col5
       double precision tau_new,tau_old
-      double precision, allocatable :: Integral(:),z1(:),z2(:)
+      double precision, allocatable ::Integral(:),z1(:),z2(:),weights(:)
       double precision a,b,q0,dq,dtau,Fmin,tfinal,tnoise_old,tnoise_new
       double precision, allocatable::s(:),w(:),dw(:),corr(:),timestep(:)
       character str
@@ -33,7 +33,7 @@
                 if (io/=0) exit
                 n=n+1
         end do
-      print *, 'Number of lines in colvar is',n
+      !print *, 'Number of lines in colvar is',n
       !
       close(3)
       open(unit=3,file='colvar_x1')
@@ -46,7 +46,7 @@
                 endif
         enddo
       close(3)
-      print *, 'Number of columns in colvar file is',m
+      !print *, 'Number of columns in colvar file is',m
       !
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !
@@ -80,23 +80,30 @@
 
         end if 
       end do
-      print *, cv(1,2)
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !INITIALIZATION
       CALL init_random_seed()  !generate random seed
       allocate(w(m-1))
       allocate(dw(m-1))
       allocate(s(m-1))
+      allocate(weights(m-1))
+
         do i=1,m-1
                 call random_number(w(i)) !generate random weights
         end do
-      tau_old=1
+      tau_old=1e-15
       tnoise_old=1
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !
       !Suggest a move
       allocate(F(1000),G(1000),D(1000),Q(1000),Integral(1000))
-        do j=1,1000 !MAIN LOOP!!!!!!!!!!!!!!!!!!
+      do i=1,1000
+        F(i)=0
+        G(i)=50
+      end do
+        do j=1,2000 !MAIN LOOP!!!!!!!!!!!!!!!!!! 
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
               CALL create_colvar(n,m,w,cv,t,dw,a,b,q0,s)
               call execute_command_line('./restart.sh')
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -113,7 +120,7 @@
                         D(i)=1/col4
                         write(66,*) Q(i),F(i),D(i)
                 end do
-                print*,'Last profiles are:',F(1000),Q(1000),G(1000)
+                !print*,'Last profiles are:',F(1000),Q(1000),G(1000)
                 close(11)
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !calculate mfpt from integral
@@ -156,20 +163,20 @@
                                 tnoise_new=k
                 enddo
                 close(888)
-                open (unit=999,file='tau_noise')
-                write (999,*) j,tnoise_new
-                print*,'tau noise is',tnoise_new
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !Accept tau with certain probability METROPOLIS
                 !kBT=0.1
                 call random_number(r)
+                open (unit=999,file='tau_noise')
                 open(unit=13,file='tau')
                 open(unit=555,file='tau-all')
-                prob= (tnoise_old/tnoise_new)*(tau_new/tau_old)**2
+                prob= (tnoise_old/tnoise_new)*(tau_new/tau_old)**3
                  call random_number(r)
                  if (r<prob) then
-                   write(13,*) j,s,tau_new,'A',sqrt(sum(s**2))
+                   write(13,*) j,s,tau_new,'A',tnoise_new
                    write(555,*) j,tau_new,'A'
+                   write (999,*) j,tnoise_new
+                   jnew=j
                    tau_old=tau_new
                    tnoise_old=tnoise_new
                    w=s !update weights
@@ -186,7 +193,7 @@
                 !!        tau_old=tau_new
                 !!        w=s !update weights
                 !! endif
-                print*,tau_old
+                !print*,tau_old
                 deallocate(timestep,corr)
         enddo
                 close(13)
@@ -199,7 +206,7 @@
         INTEGER :: i,n,m,k,col,kp
         DOUBLE PRECISION factor1,a,b,q0,cvmin,cvmax,incr
         DOUBLE PRECISION, ALLOCATABLE :: w(:),cv(:,:),dw(:),s(:),x_new(:)
-        DOUBLE PRECISION, ALLOCATABLE :: t(:),z1(:),z2(:)
+        DOUBLE PRECISION, ALLOCATABLE :: t(:),z1(:),z2(:),F(:),G(:)
         DOUBLE PRECISION Array(1000)
         CALL INIT_RANDOM_SEED()
         allocate(x_new(n))
@@ -209,20 +216,20 @@
         enddo
         dw=-0.05+(0.05-(-0.05))*dw !random increment between -0.05 and 0.05
         s=w+dw
-        factor1=1/sqrt(dot_product(s,s)) ! XXX check
+        factor1=1/sqrt(dot_product(s,s)) ! checked
         open(unit=10,file='colvar')
         do i=1,n
                 x_new(i)=factor1*sum(s*cv(i,2:m))  
                 if (t(i) .eq. tfinal ) then !label colvar file
                         if (cv(i,2) .gt. cv(1,2)) then !shootings start from barrier top
-                                write(10,*) t(i),x_new(i),2
+                                write(10,'(F10.5,F10.5,I6)') t(i),x_new(i),2
                                 z2=[z2,x_new(i)]
                         else
-                                write(10,*) t(i),x_new(i), 1
+                                write(10,'(F10.5,F10.5,I6)') t(i),x_new(i), 1
                                 z1=[z1,x_new(i)]
                                 end if
                         else
-                                write(10,*) t(i), x_new(i)
+                                write(10,'(F10.5,F10.5)') t(i), x_new(i)
                         end if
         enddo
         close(10)
@@ -233,9 +240,10 @@
                 a=minval(x_new) ! reflecting bound is lowest q value
                 b=sum(z2)/size(z2) !average value of second minima absorbing bound
                 q0=sum(z1)/size(z1) !average value of first minima
-                print*, 'integral bounds are=',a,b,q0
+                !print*, 'integral bounds are=',a,b,q0
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        ! CREATE RESTART FILE FOR OPTLE
+        ! CREATE RESTART FILE FOR OPTLE, STARTING FROM FLAT SURFACES
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         open(unit=99,file='RESTART')
         write (99,*) '#x,F,F/kT,Gamma,m'
         cvmin=minval(x_new)
@@ -245,11 +253,10 @@
                         Array = [(cvmin  + (kp-1) * incr, kp=1,1000 )]
                 end do
                 do k=1,1000
-                        write (99,*) Array(k), 0, 0, 50, 1
+                        write (99,'(F10.5,I3,I3,I3,I3)') Array(k), 0, 0, 50, 1
                 end do
+        print*, cvmin,cvmax
         close(99)
-        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        !
         RETURN
         END SUBROUTINE
       !XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX!
