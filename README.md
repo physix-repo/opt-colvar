@@ -6,8 +6,7 @@ This project aims to optimize collective variables (CVs) by minimizing the kinet
 
 The kinetic rate (k_{AB}) is calculated using the following formula:
 
-k_{AB}^{-1} = \int_{q_0}^{b} dx \frac{e^{\beta F(x)}}{D(x)} \int_{a}^{x} dy e^{-\beta F(y)}
-
+1/k_AB = integral[q0, b](integral[a, x] e^(-beta F(y)) dy * e^(beta F(x)) / D(x) dx)
 Where:
 - F(x) represents the free energy.
 - D(x) represents the diffusion.
