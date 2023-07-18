@@ -1,6 +1,22 @@
-# CV Optimization for Kinetic Rate Minimization
+# CV Optimization via Kinetic Rate Minimization
 
 This project aims to optimize collective variables (CVs) by minimizing the kinetic rate. The provided code, written in Fortran, utilizes a Monte Carlo Metropolis optimization algorithm to generate an optimized set of weights for a linear combination of the CVs. The optimized weights are obtained by iteratively perturbing an initial random combination and accepting perturbations that minimize the kinetic rate.
+
+## Theory
+
+The kinetic rate (k_{AB}) is calculated using the following formula:
+
+k_{AB}^{-1} = \int_{q_0}^{b} dx \frac{e^{\beta F(x)}}{D(x)} \int_{a}^{x} dy e^{-\beta F(y)}
+
+Where:
+- F(x) represents the free energy.
+- D(x) represents the diffusion.
+- The integral limits are defined as follows:
+  - q_0: Lower limit for the integration.
+  - b: Upper limit for the integration.
+  - a: Lower limit for the inner integration.
+
+The values for F(x) and D(x) are obtained by training an overdamped Langevin model in the high friction regime via likelihood maximization. For more details about the training process and methodology, refer to the publication: "Free Energy Landscapes, Diffusion Coefficients, and Kinetic Rates from Transition Paths" published in J. Chem. Theory Comput. 2022, 18, 8, 4639–4648.
 
 ## Getting Started
 
@@ -11,6 +27,12 @@ To use this code, follow the steps below:
 Make sure you have the following dependencies installed on your system:
 
 - Fortran compiler (e.g., GNU Fortran)
+- optLE executable (see below)
+
+### OptLE Code
+
+This code relies on the optLE code, which needs to be downloaded from the [optLE GitHub repository](https://github.com/physix-repo/optLE). Please refer to their README file for instructions on how to obtain and compile the optLE executable.
+
 
 ### Compilation
 
